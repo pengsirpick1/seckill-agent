@@ -1,0 +1,26 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Gateway QPS", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"gateway\",route=\"/api/v1/seckill\"}[1m]))", "legendFormat": "requests/s"}], "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}},
+    {"id": 2, "type": "timeseries", "title": "Gateway P50 / P95 / P99", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"gateway\",route=\"/api/v1/seckill\"}[5m])))", "legendFormat": "p50"}, {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"gateway\",route=\"/api/v1/seckill\"}[5m])))", "legendFormat": "p95"}, {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"gateway\",route=\"/api/v1/seckill\"}[5m])))", "legendFormat": "p99"}], "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}},
+    {"id": 3, "type": "timeseries", "title": "HTTP 202 与 429", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"gateway\",route=\"/api/v1/seckill\",status=\"202\"}[1m]))", "legendFormat": "202/s"}, {"refId": "B", "expr": "sum(rate(http_requests_total{job=\"gateway\",route=\"/api/v1/seckill\",status=\"429\"}[1m]))", "legendFormat": "429/s"}], "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}},
+    {"id": 4, "type": "timeseries", "title": "接入速率、Kafka lag 与持久化速率", "description": "同一时间轴用于观察 Gateway 接入、order-consumer backlog 与 MySQL 持久化。", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "rate(seckill_success_total[1m])", "legendFormat": "accepted/s"}, {"refId": "B", "expr": "sum(kafka_consumer_lag{consumer=\"seckill-order-consumer\"})", "legendFormat": "lag"}, {"refId": "C", "expr": "sum(rate(order_consumer_processed_total{result=\"persisted\"}[1m]))", "legendFormat": "persisted/s"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}},
+    {"id": 5, "type": "timeseries", "title": "Seckill 业务结果", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "rate(seckill_success_total[1m])", "legendFormat": "accepted/s"}, {"refId": "B", "expr": "rate(seckill_stock_exhausted_total[1m])", "legendFormat": "stock_exhausted/s"}, {"refId": "C", "expr": "rate(redis_compensation_total[1m])", "legendFormat": "compensation/s"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}},
+    {"id": 6, "type": "timeseries", "title": "Redis Lua P95", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(redis_operation_duration_seconds_bucket[5m])))", "legendFormat": "{{operation}}"}], "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}},
+    {"id": 7, "type": "timeseries", "title": "Kafka Produce", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(kafka_producer_requests_total[1m]))", "legendFormat": "ack/s"}, {"refId": "B", "expr": "sum(rate(kafka_producer_failures_total[1m]))", "legendFormat": "failure/s"}], "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}},
+    {"id": 8, "type": "timeseries", "title": "Etcd Lock P95 / Failures", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(etcd_lock_wait_duration_seconds_bucket{result=\"acquired\"}[5m])))", "legendFormat": "wait p95"}, {"refId": "B", "expr": "sum(rate(etcd_lock_failure_total[1m]))", "legendFormat": "failure/s"}], "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}},
+    {"id": 9, "type": "timeseries", "title": "Ranking Consumer", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(rank_consumer_processed_total[1m]))", "legendFormat": "applied/s"}, {"refId": "B", "expr": "sum(rate(rank_consumer_failed_total[1m]))", "legendFormat": "failure/s"}], "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24}},
+    {"id": 10, "type": "timeseries", "title": "Order Consumer Failures", "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"refId": "A", "expr": "sum(rate(order_consumer_failed_total[1m]))", "legendFormat": "failure/s"}], "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24}}
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["seckill", "m6"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "Seckill M6 Overview",
+  "uid": "seckill-m6-overview",
+  "version": 1
+}

@@ -1,0 +1,331 @@
+name: seckill-agent
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: seckill
+      MYSQL_USER: seckill
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-development-seckill-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-development-root-password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/mysql/001-bootstrap.sql:/docker-entrypoint-initdb.d/001-bootstrap.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    networks: [backend]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./deploy/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    networks: [backend]
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    command: ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
+    volumes:
+      - ./deploy/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      loki: {condition: service_started}
+    networks: [backend]
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks: [backend]
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.16
+    command:
+      - etcd
+      - --name=etcd-0
+      - --data-dir=/etcd-data
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-cluster=etcd-0=http://etcd:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=seckill-agent-etcd
+    ports:
+      - "2379:2379"
+    volumes:
+      - etcd-data:/etcd-data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.order-created.v1 --partitions 1 --replication-factor 1 && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.order-succeeded.v1 --partitions 1 --replication-factor 1"]
+    depends_on:
+      kafka: {condition: service_healthy}
+    restart: "no"
+    networks: [backend]
+
+  gateway:
+    build:
+      context: .
+      target: runtime
+    image: seckill-agent/app:local
+    command: ["/app/gateway"]
+    environment:
+      APP_ENV: development
+      HTTP_ADDR: :8080
+      MYSQL_ADDRESS: mysql:3306
+      MYSQL_DSN: seckill:${MYSQL_PASSWORD:-development-seckill-password}@tcp(mysql:3306)/seckill?parseTime=true&charset=utf8mb4&loc=UTC
+      REDIS_ADDRESS: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      ETCD_ENDPOINTS: etcd:2379
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+      ETCD_LOCK_SESSION_TTL: ${ETCD_LOCK_SESSION_TTL:-10s}
+      ETCD_LOCK_ACQUIRE_TIMEOUT: ${ETCD_LOCK_ACQUIRE_TIMEOUT:-2s}
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
+      SECKILL_LOCK_MODE: ${SECKILL_LOCK_MODE:-redis_lua_only}
+      ORDER_CANCEL_API_ENABLED: ${ORDER_CANCEL_API_ENABLED:-false}
+      FAULT_REDIS_DELAY_MS: ${FAULT_REDIS_DELAY_MS:-0}
+      FAULT_ETCD_DELAY_MS: ${FAULT_ETCD_DELAY_MS:-0}
+      LOCAL_LIMIT_RATE: ${LOCAL_LIMIT_RATE:-1000}
+      LOCAL_LIMIT_BURST: ${LOCAL_LIMIT_BURST:-1000}
+      REDIS_LIMIT_GLOBAL_RATE: ${REDIS_LIMIT_GLOBAL_RATE:-500}
+      REDIS_LIMIT_GLOBAL_BURST: ${REDIS_LIMIT_GLOBAL_BURST:-500}
+      REDIS_LIMIT_PRODUCT_RATE: ${REDIS_LIMIT_PRODUCT_RATE:-200}
+      REDIS_LIMIT_PRODUCT_BURST: ${REDIS_LIMIT_PRODUCT_BURST:-200}
+      REDIS_LIMIT_USER_RATE: ${REDIS_LIMIT_USER_RATE:-5}
+      REDIS_LIMIT_USER_BURST: ${REDIS_LIMIT_USER_BURST:-5}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      etcd: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+    networks: [backend]
+
+  outbox-publisher:
+    image: seckill-agent/app:local
+    command: ["/app/outbox-publisher"]
+    environment:
+      APP_ENV: development
+      HTTP_ADDR: :8084
+      REDIS_ADDRESS: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ORDER_TOPIC: seckill.order-created.v1
+      RESERVATION_OUTBOX_CONSUMER_GROUP: seckill-reservation-outbox
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+    depends_on:
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+    networks: [backend]
+
+  order-consumer:
+    image: seckill-agent/app:local
+    command: ["/app/order-consumer"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      MYSQL_DSN: seckill:${MYSQL_PASSWORD:-development-seckill-password}@tcp(mysql:3306)/seckill?parseTime=true&charset=utf8mb4&loc=UTC
+      MYSQL_ADDRESS: mysql:3306
+      REDIS_ADDRESS: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ORDER_TOPIC: seckill.order-created.v1
+      KAFKA_ORDER_SUCCEEDED_TOPIC: seckill.order-succeeded.v1
+      KAFKA_CONSUMER_GROUP: seckill-order-consumer
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+      KAFKA_CONSUMER_POLL_RECORDS: 1
+      HTTP_ADDR: :8082
+      FAULT_DB_DELAY_MS: ${FAULT_DB_DELAY_MS:-0}
+      FAULT_CONSUMER_DELAY_MS: ${FAULT_CONSUMER_DELAY_MS:-0}
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+    networks: [backend]
+
+  release-worker:
+    image: seckill-agent/app:local
+    command: ["/app/release-worker"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      HTTP_ADDR: :8085
+      MYSQL_ADDRESS: mysql:3306
+      MYSQL_DSN: seckill:${MYSQL_PASSWORD:-development-seckill-password}@tcp(mysql:3306)/seckill?parseTime=true&charset=utf8mb4&loc=UTC
+      REDIS_ADDRESS: redis:6379
+      INVENTORY_RELEASE_POLL_INTERVAL: ${INVENTORY_RELEASE_POLL_INTERVAL:-250ms}
+      INVENTORY_RELEASE_LEASE: ${INVENTORY_RELEASE_LEASE:-30s}
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    networks: [backend]
+
+  rank-consumer:
+    image: seckill-agent/app:local
+    command: ["/app/rank-consumer"]
+    environment:
+      APP_ENV: development
+      HTTP_ADDR: :8083
+      REDIS_ADDRESS: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ORDER_SUCCEEDED_TOPIC: seckill.order-succeeded.v1
+      KAFKA_RANK_CONSUMER_GROUP: seckill-rank-consumer
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+      KAFKA_CONSUMER_POLL_RECORDS: 1
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
+    depends_on:
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+    networks: [backend]
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      gateway: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-development-grafana-password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  go-test:
+    build:
+      context: .
+      target: test
+    profiles: [tools]
+    environment:
+      MYSQL_DSN: seckill:${MYSQL_PASSWORD:-development-seckill-password}@tcp(mysql:3306)/seckill?parseTime=true&charset=utf8mb4&loc=UTC
+      REDIS_ADDRESS: redis:6379
+      LOG_SHIPPER_URL: http://alloy:3101/loki/api/v1/push
+      LOKI_URL: http://loki:3100
+    volumes:
+      - .:/src
+    working_dir: /src
+    networks: [backend]
+
+  migrate:
+    image: mysql:8.4
+    profiles: [tools]
+    environment:
+      MYSQL_PWD: ${MYSQL_PASSWORD:-development-seckill-password}
+    command: ["sh", "/migrations/run-migrations.sh"]
+    volumes:
+      - ./scripts/mysql:/migrations:ro
+    depends_on:
+      mysql: {condition: service_healthy}
+    networks: [backend]
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  kafka-data:
+  etcd-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:

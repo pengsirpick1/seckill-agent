@@ -1,0 +1,7 @@
+.env
+bin/
+coverage.out
+*.test
+data/
+.workbuddy/
+artifacts/resume/

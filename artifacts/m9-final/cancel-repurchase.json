@@ -1,0 +1,194 @@
+{
+    "metrics": {
+        "http_req_duration": {
+            "min": 0.740487,
+            "med": 1.7582680000000002,
+            "avg": 7.957925887387386,
+            "p(90)": 22.1941896,
+            "p(95)": 23.301477699999996,
+            "p(99)": 24.23359048,
+            "max": 24.915087
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "avg": 1.853699878378378,
+            "p(90)": 2.0588465,
+            "p(95)": 23.204625999999998,
+            "p(99)": 23.435499880000002,
+            "max": 23.74451,
+            "min": 0
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "avg": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0
+        },
+        "vus_max": {
+            "max": 100,
+            "value": 100,
+            "min": 100
+        },
+        "http_reqs": {
+            "count": 222,
+            "rate": 42.40729677293242
+        },
+        "vus": {
+            "value": 0,
+            "min": 0,
+            "max": 0
+        },
+        "http_req_blocked": {
+            "med": 0.0061165,
+            "avg": 2.0935368558558554,
+            "p(90)": 2.238257600000001,
+            "p(95)": 23.300709949999998,
+            "p(99)": 24.327463019999996,
+            "max": 24.917758,
+            "min": 0.001724
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 7.957925887387386,
+            "p(90)": 22.1941896,
+            "p(95)": 23.301477699999996,
+            "p(99)": 24.23359048,
+            "max": 24.915087,
+            "min": 0.740487,
+            "med": 1.7582680000000002
+        },
+        "data_sent": {
+            "count": 34306,
+            "rate": 6553.2645184334215
+        },
+        "released_stock_accepted": {
+            "count": 5,
+            "rate": 0.955119296687667
+        },
+        "checks": {
+            "passes": 113,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "iterations": {
+            "count": 100,
+            "rate": 19.102385933753343
+        },
+        "iteration_duration": {
+            "min": 5.686143,
+            "med": 22.6632285,
+            "avg": 20.82005394999999,
+            "p(90)": 30.4091108,
+            "p(95)": 31.1705036,
+            "p(99)": 31.535855419999997,
+            "max": 31.560152
+        },
+        "http_req_receiving": {
+            "p(90)": 0.09427500000000001,
+            "p(95)": 0.1368869999999999,
+            "p(99)": 1.0510980599999993,
+            "max": 2.518712,
+            "min": 0.008235,
+            "med": 0.056116,
+            "avg": 0.08246209459459453
+        },
+        "http_req_failed": {
+            "fails": 222,
+            "passes": 0,
+            "thresholds": {
+                "rate==0": false
+            },
+            "value": 0
+        },
+        "http_req_waiting": {
+            "med": 1.653448,
+            "avg": 7.763059414414416,
+            "p(90)": 21.996130400000002,
+            "p(95)": 23.112632549999997,
+            "p(99)": 23.587436259999997,
+            "max": 24.080287,
+            "min": 0.685814
+        },
+        "http_req_sending": {
+            "p(99)": 0.9239935699999988,
+            "max": 1.453452,
+            "min": 0.005881,
+            "med": 0.037176,
+            "avg": 0.11240437837837844,
+            "p(90)": 0.3174831,
+            "p(95)": 0.57529785
+        },
+        "data_received": {
+            "count": 80220,
+            "rate": 15323.93399605693
+        }
+    },
+    "setup_data": {
+        "activityID": 316,
+        "productID": 316
+    },
+    "root_group": {
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "product created": {
+                            "fails": 0,
+                            "name": "product created",
+                            "path": "::setup::product created",
+                            "id": "9dfaa655d864b19f6508fde73bd38724",
+                            "passes": 1
+                        },
+                        "activity created": {
+                            "name": "activity created",
+                            "path": "::setup::activity created",
+                            "id": "05e2520344da7d5c838833863f08d106",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "stock warmed": {
+                            "path": "::setup::stock warmed",
+                            "id": "ff644b1dfc907a0b2e99c67cd00f591c",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "stock warmed"
+                        },
+                        "initial reservation accepted": {
+                            "name": "initial reservation accepted",
+                            "path": "::setup::initial reservation accepted",
+                            "id": "abf19980d64f6fa4e2c2c69909854ac0",
+                            "passes": 5,
+                            "fails": 0
+                        },
+                        "cancel accepted": {
+                            "name": "cancel accepted",
+                            "path": "::setup::cancel accepted",
+                            "id": "548f9509917c79c83dd3494110aebf91",
+                            "passes": 5,
+                            "fails": 0
+                        }
+                    }
+            }
+        },
+        "checks": {
+            "reclaim either gets released stock or clean exhaustion": {
+                "name": "reclaim either gets released stock or clean exhaustion",
+                "path": "::reclaim either gets released stock or clean exhaustion",
+                "id": "86204c9ff1c5bb78d08bf0679c942f9a",
+                "passes": 100,
+                "fails": 0
+            }
+        },
+        "name": "",
+        "path": ""
+    }
+}
